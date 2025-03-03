@@ -9,137 +9,35 @@ import (
 )
 
 const (
-	MidiPort = "X-Touch"
-)
-
-var (
-	nameToNote map[string]byte
-	noteToName map[byte]string
+	MidiPort = "X-Touch INT"
 )
 
 type XTouch struct {
-	LedDisplay LedDisplay
-	channel    byte
-	send       func(midi.Message) error
-	stop       func()
+	LedDisplay   LedDisplay
+	channel      byte
+	send         func(midi.Message) error
+	stop         func()
+	nameToNote   map[string]byte
+	noteToButton map[byte]*Button
+	faders       map[byte]*Fader
+	encoders     map[byte]*Encoder
 }
 
-func init() {
-	nameToNote = map[string]byte{
-		"TRACK":            40,
-		"PAN/SURROUND":     42,
-		"EQ":               44,
-		"SEND":             41,
-		"PLUG-IN":          43,
-		"INST":             45,
-		"GLOBAL VIEW":      51,
-		"MIDI TRACKS":      62,
-		"INPUTS":           63,
-		"AUDIO TRACKS":     64,
-		"AUDIO INST":       65,
-		"AUX":              66,
-		"BUSES":            67,
-		"OUTPUTS":          68,
-		"USER":             69,
-		"F1":               54,
-		"F2":               55,
-		"F3":               56,
-		"F4":               57,
-		"F5":               58,
-		"F6":               59,
-		"F7":               60,
-		"F8":               61,
-		"SHIFT":            70,
-		"OPTION":           71,
-		"CONTROL":          72,
-		"ALT":              73,
-		"READ/OFF":         74,
-		"WRITE":            75,
-		"TRIM":             76,
-		"TOUCH":            77,
-		"LATCH":            78,
-		"GROUP":            79,
-		"SAVE":             80,
-		"UNDO":             81,
-		"CANCEL":           82,
-		"ENTER":            83,
-		"MARKER":           84,
-		"NUDGE":            85,
-		"CYCLE":            86,
-		"DROP":             87,
-		"REPLACE":          88,
-		"CLICK":            89,
-		"SOLO":             90,
-		"REWIND":           91,
-		"FAST-FORWARD":     92,
-		"STOP":             93,
-		"PLAY":             94,
-		"RECORD":           95,
-		"FADER BANK/LEFT":  46,
-		"FADER BANK/RIGHT": 47,
-		"CHANNEL/LEFT":     48,
-		"CHANNEL/RIGHT":    49,
-		"SCRUB":            101,
-		"UP":               96,
-		"LEFT":             98,
-		"CENTER":           100,
-		"RIGHT":            99,
-		"DOWN":             97,
-		"FLIP":             50,
-		"NAME/VALUE":       52,
-		"BEATS":            53,
-		"REC/1":            0,
-		"REC/2":            1,
-		"REC/3":            2,
-		"REC/4":            3,
-		"REC/5":            4,
-		"REC/6":            5,
-		"REC/7":            6,
-		"REC/8":            7,
-		"SOLO/1":           8,
-		"SOLO/2":           9,
-		"SOLO/3":           10,
-		"SOLO/4":           11,
-		"SOLO/5":           12,
-		"SOLO/6":           13,
-		"SOLO/7":           14,
-		"SOLO/8":           15,
-		"MUTE/1":           16,
-		"MUTE/2":           17,
-		"MUTE/3":           18,
-		"MUTE/4":           19,
-		"MUTE/5":           20,
-		"MUTE/6":           21,
-		"MUTE/7":           22,
-		"MUTE/8":           23,
-		"SELECT/1":         24,
-		"SELECT/2":         25,
-		"SELECT/3":         26,
-		"SELECT/4":         27,
-		"SELECT/5":         28,
-		"SELECT/6":         29,
-		"SELECT/7":         30,
-		"SELECT/8":         31,
-		"ENCODER/1":        32,
-		"ENCODER/2":        33,
-		"ENCODER/3":        34,
-		"ENCODER/4":        35,
-		"ENCODER/5":        36,
-		"ENCODER/6":        37,
-		"ENCODER/7":        38,
-		"ENCODER/8":        39,
-		"SMPTE/LED":        113,
-		"BEATS/LED":        114,
-		"SOLO/LED":         115,
-	}
+func (x *XTouch) initButtons() {
+	x.nameToNote = buttonNameToNote
 	// This tests for duplicates
-	noteToName = map[byte]string{}
-	for name, note := range nameToNote {
-		if n, ok := noteToName[note]; ok {
+	x.noteToButton = map[byte]*Button{}
+	for name, note := range x.nameToNote {
+		if n, ok := x.noteToButton[note]; ok {
 			fmt.Printf("noteToName: found name %v for note %v\n", n, note)
 			os.Exit(1)
 		}
-		noteToName[note] = name
+		x.noteToButton[note] = &Button{
+			note:     note,
+			name:     name,
+			behavior: defaultButtonBehavior,
+			base:     x,
+		}
 	}
 }
 
@@ -162,17 +60,40 @@ func NewXTouchByName(name string) (*XTouch, error) {
 		return nil, err
 	}
 
-	stop, err := midi.ListenTo(in, func(msg midi.Message, timestampms int32) {
-		fmt.Printf("Message %v\n", msg)
-		midisend(msg)
+	x := &XTouch{
+		send: midisend,
+	}
+	x.initButtons()
+	x.faders = map[byte]*Fader{}
+	x.encoders = map[byte]*Encoder{}
+	for i := 1; i <= 9; i++ {
+		x.faders[byte(i)] = &Fader{index: byte(i) - 1, base: x, limit: 101}
+		x.encoders[byte(i)] = &Encoder{index: byte(i), base: x, mode: modeContinuous}
+	}
+
+	x.stop, err = midi.ListenTo(in, func(msg midi.Message, timestampms int32) {
+		var ch, key, v uint8
+		var u16 uint16
+		switch {
+		case msg.GetNoteOn(&ch, &key, &v):
+			if err := x.ButtonByNote(key).callBehavior(msg); err != nil {
+				fmt.Printf("error handling msg: %v\n", msg)
+			}
+		case msg.GetPitchBend(&ch, nil, &u16):
+			if err := x.Fader(ch + 1).callHandler(u16); err != nil {
+				fmt.Printf("error handling msg: %v\n", msg)
+			}
+		case msg.GetControlChange(&ch, &key, &v):
+			if err := x.encoderFromController(key).callHandler(v); err != nil {
+				fmt.Printf("error handling msg: %v\n", msg)
+			}
+		default:
+			fmt.Printf("Message %v\n", msg)
+			x.send(msg)
+		}
 	}, midi.UseSysEx())
 	if err != nil {
 		return nil, err
-	}
-
-	x := &XTouch{
-		send: midisend,
-		stop: stop,
 	}
 
 	x.LedDisplay = LedDisplay{base: x}
@@ -183,22 +104,48 @@ func (x *XTouch) LcdDisplay(i byte) LcdDisplay {
 	return LcdDisplay{base: x, index: i}
 }
 
-func (x *XTouch) Encoder(i byte) Encoder {
-	return Encoder{base: x, index: i + 47}
+func (x *XTouch) encoderFromController(i byte) *Encoder {
+	if 16 <= i && i <= 23 {
+		return x.encoders[i-15]
+	}
+	if i == 60 {
+		return x.encoders[9]
+	}
+	return nil
+}
+func (x *XTouch) Encoder(i byte) *Encoder {
+	return x.encoders[i]
 }
 
 func (x *XTouch) Led(i byte) Led {
 	return Led{base: x, index: i}
 }
 
-func (x *XTouch) Button(name string) Led {
-	if note, ok := nameToNote[name]; ok {
-		return Led{base: x, index: note}
-	}
-	return Led{base: x, index: 0}
+func (x *XTouch) ButtonByNote(note byte) *Button {
+	return x.noteToButton[note]
+}
 
+func (x *XTouch) Button(name string) *Button {
+	if note, ok := x.nameToNote[name]; ok {
+		return x.noteToButton[note]
+	}
+	return nil
+}
+
+func (x *XTouch) Fader(index byte) *Fader {
+	return x.faders[index]
 }
 
 func (x *XTouch) Stop() {
+	x.LedDisplay.SetAll("")
+	for i := 1; i <= 8; i++ {
+		x.LcdDisplay(byte(i)).ClearPanel()
+		x.Encoder(byte(i)).Off()
+		x.Fader(byte(i)).setAbsolute(0)
+	}
+	x.Fader(9).setAbsolute(0)
+	for _, b := range x.noteToButton {
+		b.Off()
+	}
 	x.stop()
 }

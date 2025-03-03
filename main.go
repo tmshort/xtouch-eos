@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/tmshort/xtouch-eos/pkg/xtouch"
@@ -11,8 +13,6 @@ import (
 )
 
 func main() {
-	fmt.Println("Hello main")
-
 	defer midi.CloseDriver()
 
 	inPorts := midi.GetInPorts()
@@ -27,20 +27,47 @@ func main() {
 		os.Exit(1)
 	}
 
+	sigChan := make(chan os.Signal, 20)
+	go signal.Notify(sigChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	timeChan := time.NewTimer(time.Minute).C
+
 	fmt.Printf("Listening...\n")
 
 	//disp.SetLCDRaw("Hello World", 0)
 	disp.LcdDisplay(4).SetPanel("Hello", "World44444444")
 	disp.LedDisplay.SetAll("  E0S 3.14.0")
-	disp.Encoder(1).Single(4)
-	disp.Encoder(2).Balance(4)
-	disp.Encoder(3).Fill(4)
-	disp.Encoder(4).Wide(4)
-	time.Sleep(time.Second * 60)
 
-	disp.LedDisplay.SetAll("")
-	for i := 0; i < 150; i++ {
-		disp.Led(byte(i)).Off()
+	encoderHandler := func(i byte, v byte, d int8) {
+		fmt.Printf("index=%v value=%v delta=%v\n", i, v, d)
 	}
+
+	disp.Encoder(1).ModeSingle().Handler(encoderHandler).Set(4)
+	disp.Encoder(2).ModeBalance().Handler(encoderHandler).Set(4)
+	disp.Encoder(3).ModeFill().Handler(encoderHandler).Set(4)
+	disp.Encoder(4).ModeWide().Handler(encoderHandler).Set(4)
+	disp.Encoder(5).ModeContinuous().Handler(encoderHandler)
+	disp.Encoder(9).ModeWide().Handler(encoderHandler)
+
+	handler := func(name string, note byte, value bool) {
+		fmt.Printf("Button %v (%v) = %v\n", name, note, value)
+	}
+
+	disp.Button("MARKER").PressBehavior().Handler(handler)
+	disp.Button("NUDGE").ToggleBehavior().Handler(handler)
+
+	disp.Fader(2).Handler(func(f byte, v uint16) {
+		fmt.Printf("fader %v at %v\n", f, v)
+	})
+
+	func() {
+		select {
+		case <-timeChan:
+			return
+		case <-sigChan:
+			return
+		}
+	}()
+
+	fmt.Printf("\nCleaning up...\n")
 	disp.Stop()
 }

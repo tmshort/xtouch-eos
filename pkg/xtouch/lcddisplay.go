@@ -39,3 +39,7 @@ func (l LcdDisplay) SetPanel(textTop, textBottom string) {
 	l.displayLcdRaw(textTop, byte(posTop))
 	l.displayLcdRaw(textBottom, byte(posBottom))
 }
+
+func (l LcdDisplay) ClearPanel() {
+	l.SetPanel("", "")
+}
