@@ -8,7 +8,20 @@ import (
 )
 
 type LedDisplay struct {
-	send func(midi.Message) error
+	base *XTouch
+}
+
+type Led struct {
+	base  *XTouch
+	index byte
+}
+
+func (l Led) On() {
+	l.base.send(midi.NoteOn(l.base.channel, l.index, 127))
+}
+
+func (l Led) Off() {
+	l.base.send(midi.NoteOn(l.base.channel, l.index, 0))
 }
 
 func (LedDisplay) translateTextToMcu(text string) ([]byte, error) {
@@ -34,7 +47,7 @@ func (LedDisplay) translateTextToMcu(text string) ([]byte, error) {
 
 func (l LedDisplay) displaySevenSegment(position, value []byte) {
 	for i := range position {
-		l.send(midi.ControlChange(0, position[i], value[i]))
+		l.base.send(midi.ControlChange(l.base.channel, position[i], value[i]))
 	}
 }
 

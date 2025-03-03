@@ -8,7 +8,7 @@ import (
 )
 
 type LcdDisplay struct {
-	send  func(midi.Message) error
+	base  *XTouch
 	index byte
 }
 
@@ -24,7 +24,7 @@ func (l LcdDisplay) displayLcdRaw(text string, startpos byte) {
 	}
 	command = append(command, data...)
 
-	err := l.send(midi.SysEx(command))
+	err := l.base.send(midi.SysEx(command))
 	if err != nil {
 		fmt.Printf("error sending: %v\n", err)
 	}

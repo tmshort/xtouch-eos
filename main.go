@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/tmshort/xtouch-eos/pkg/xtouch"
@@ -23,6 +24,7 @@ func main() {
 	disp, err := xtouch.NewXTouch()
 	if err != nil {
 		fmt.Printf("error creating XTouch: %v\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("Listening...\n")
@@ -37,5 +39,8 @@ func main() {
 	time.Sleep(time.Second * 60)
 
 	disp.LedDisplay.SetAll("")
+	for i := 0; i < 150; i++ {
+		disp.Led(byte(i)).Off()
+	}
 	disp.Stop()
 }
