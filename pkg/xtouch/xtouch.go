@@ -74,22 +74,20 @@ func NewXTouchByName(name string) (*XTouch, error) {
 	x.stop, err = midi.ListenTo(in, func(msg midi.Message, timestampms int32) {
 		var ch, key, v uint8
 		var u16 uint16
+		var err error
 		switch {
 		case msg.GetNoteOn(&ch, &key, &v):
-			if err := x.ButtonByNote(key).callBehavior(msg); err != nil {
-				fmt.Printf("error handling msg: %v\n", msg)
-			}
+			err = x.ButtonByNote(key).callBehavior(msg)
 		case msg.GetPitchBend(&ch, nil, &u16):
-			if err := x.Fader(ch + 1).callHandler(u16); err != nil {
-				fmt.Printf("error handling msg: %v\n", msg)
-			}
+			err = x.Fader(ch + 1).callHandler(u16)
 		case msg.GetControlChange(&ch, &key, &v):
-			if err := x.encoderFromController(key).callHandler(v); err != nil {
-				fmt.Printf("error handling msg: %v\n", msg)
-			}
+			err = x.encoderFromController(key).callHandler(v)
 		default:
 			fmt.Printf("Message %v\n", msg)
-			x.send(msg)
+			err = x.send(msg)
+		}
+		if err != nil {
+			fmt.Printf("error handling msg: %v\n", msg)
 		}
 	}, midi.UseSysEx())
 	if err != nil {
