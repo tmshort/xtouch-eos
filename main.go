@@ -26,6 +26,7 @@ func main() {
 		fmt.Printf("error creating XTouch: %v\n", err)
 		os.Exit(1)
 	}
+	defer xt.Stop()
 
 	sigChan := make(chan os.Signal, 20)
 	go signal.Notify(sigChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -69,5 +70,4 @@ func main() {
 	}()
 
 	fmt.Printf("\nCleaning up...\n")
-	xt.Stop()
 }
