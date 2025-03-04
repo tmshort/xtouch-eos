@@ -1,6 +1,8 @@
 package xtouch
 
 import (
+	"fmt"
+
 	"gitlab.com/gomidi/midi/v2"
 	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv"
 )
@@ -64,11 +66,10 @@ func (e *Encoder) updateLeds(value byte) error {
 }
 
 func (e *Encoder) setMode(m byte) *Encoder {
-	if e.index == 9 {
-		e.mode = modeContinuous
-	} else {
-		e.mode = m
+	if e.index == 9 && m != modeContinuous {
+		return nil
 	}
+	e.mode = m
 	return e
 }
 func (e *Encoder) ModeSingle() *Encoder {
@@ -96,7 +97,16 @@ func (e *Encoder) Off() error {
 }
 
 func (e *Encoder) Set(value byte) error {
+	if e.mode == modeContinuous {
+		return fmt.Errorf("can't set value in continuous mode")
+	}
 	e.value = value & 0x0F
+	if value > 11 {
+		value = 11
+	}
+	if e.mode == modeWide && value > 6 {
+		value = 6
+	}
 	return e.updateLeds(e.value | e.mode)
 }
 
