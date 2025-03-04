@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tmshort/xtouch-eos/pkg/eos"
 	"github.com/tmshort/xtouch-eos/pkg/xtouch"
 	"gitlab.com/gomidi/midi/v2"
 	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv"
@@ -18,8 +19,8 @@ func main() {
 	inPorts := midi.GetInPorts()
 	outPorts := midi.GetOutPorts()
 
-	fmt.Printf("inPorts: %+v\n", inPorts)
-	fmt.Printf("outPorts: %+v\n", outPorts)
+	fmt.Printf("inPorts:\n%+v\n", inPorts)
+	fmt.Printf("outPorts:\n%+v\n", outPorts)
 
 	xt, err := xtouch.NewXTouch()
 	if err != nil {
@@ -59,6 +60,13 @@ func main() {
 	xt.Fader(2).Handler(func(f byte, v uint16) {
 		fmt.Printf("fader %v at %v\n", f, v)
 	})
+
+	_, err = eos.NewEos("localhost", "localhost")
+	if err != nil {
+		fmt.Printf("error creating Eos: %v\n", err)
+		os.Exit(1)
+
+	}
 
 	func() {
 		select {
