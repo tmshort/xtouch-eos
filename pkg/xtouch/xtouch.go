@@ -23,7 +23,7 @@ type XTouch struct {
 	encoders     map[byte]*Encoder
 }
 
-func (x *XTouch) initButtons() {
+func (x *XTouch) init() {
 	x.nameToNote = buttonNameToNote
 	// This tests for duplicates
 	x.noteToButton = map[byte]*Button{}
@@ -39,6 +39,23 @@ func (x *XTouch) initButtons() {
 			base:     x,
 		}
 	}
+	x.faders = map[byte]*Fader{}
+	x.encoders = map[byte]*Encoder{}
+	for i := 1; i <= 9; i++ {
+		x.faders[byte(i)] = &Fader{index: byte(i) - 1, base: x, limit: 101}
+		x.encoders[byte(i)] = &Encoder{index: byte(i), base: x, mode: modeContinuous}
+	}
+	x.LedDisplay = LedDisplay{base: x}
+}
+
+func NewFakeXTouch() (*XTouch, error) {
+	x := &XTouch{}
+
+	x.send = func(_ midi.Message) error { return nil }
+	x.stop = func() {}
+	x.init()
+
+	return x, nil
 }
 
 func NewXTouch() (*XTouch, error) {
@@ -63,13 +80,7 @@ func NewXTouchByName(name string) (*XTouch, error) {
 	x := &XTouch{
 		send: midisend,
 	}
-	x.initButtons()
-	x.faders = map[byte]*Fader{}
-	x.encoders = map[byte]*Encoder{}
-	for i := 1; i <= 9; i++ {
-		x.faders[byte(i)] = &Fader{index: byte(i) - 1, base: x, limit: 101}
-		x.encoders[byte(i)] = &Encoder{index: byte(i), base: x, mode: modeContinuous}
-	}
+	x.init()
 
 	x.stop, err = midi.ListenTo(in, func(msg midi.Message, timestampms int32) {
 		var ch, key, v uint8
@@ -94,7 +105,6 @@ func NewXTouchByName(name string) (*XTouch, error) {
 		return nil, err
 	}
 
-	x.LedDisplay = LedDisplay{base: x}
 	return x, nil
 }
 

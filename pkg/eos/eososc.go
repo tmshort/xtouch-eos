@@ -2,69 +2,77 @@ package eos
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 
-	"github.com/hypebeast/go-osc/osc"
+	"github.com/tmshort/xtouch-eos/pkg/osc"
+	//"github.com/hypebeast/go-osc/osc"
 )
 
 const (
-	defaultPort = 8765
+	defaultRemotePort = 53000 // send to this // 4703 // 8000
+	defaultLocalPort  = 53001 // receive on this // 4704 // 8001
 )
 
 type Eos struct {
-	client     *osc.Client
-	server     *osc.Server
+	conn       *osc.Connection
 	dispatcher *osc.StandardDispatcher
 }
 
-func NewEos(txaddr, rxaddr string) (*Eos, error) {
-	var host string
+func NewEos(laddr, raddr string) (*Eos, error) {
 	var port int
 	var err error
 
-	args := strings.Split(txaddr, ":")
+	args := strings.Split(raddr, ":")
 	switch {
 	case len(args) == 2:
-		host = args[0]
-		port, err = strconv.Atoi(args[1])
-		if err != nil {
+		if _, err = strconv.Atoi(args[1]); err != nil {
 			return nil, err
 		}
 	case len(args) == 1:
-		host = args[0]
-		port = defaultPort
+		raddr = fmt.Sprintf("%s:%d", args[0], defaultRemotePort)
 	default:
-		return nil, fmt.Errorf("invalid txaddr: %v", txaddr)
+		return nil, fmt.Errorf("invalid raddr: %v", raddr)
 	}
-	client := osc.NewClient(host, port)
 
-	args = strings.Split(rxaddr, ":")
+	args = strings.Split(laddr, ":")
 	switch {
 	case len(args) == 2:
-		host = args[0]
-		port, err = strconv.Atoi(args[1])
-		if err != nil {
+		if port, err = strconv.Atoi(args[1]); err != nil {
 			return nil, err
 		}
 	case len(args) == 1:
-		host = args[0]
-		port = defaultPort
+		port = defaultLocalPort
 	default:
-		return nil, fmt.Errorf("invalid rxaddr: %v", rxaddr)
+		return nil, fmt.Errorf("invalid laddr: %v", laddr)
 	}
 	dispatcher := osc.NewStandardDispatcher()
-	server := &osc.Server{
-		Addr:       fmt.Sprintf("%v:%v", host, port),
-		Dispatcher: dispatcher,
+	conn, err := osc.NewConnection(port, raddr)
+	if err != nil {
+		return nil, err
 	}
-	return &Eos{client: client, server: server, dispatcher: dispatcher}, nil
+	conn.Dispatcher = dispatcher
+
+	return &Eos{conn: conn, dispatcher: dispatcher}, nil
 }
 
-func (e *Eos) Handler(prefix string, handler func(msg *osc.Message)) error {
+func (e *Eos) Handler(prefix string, handler func(msg *osc.Message, addr net.Addr)) error {
 	return e.dispatcher.AddMsgHandler(prefix, handler)
 }
 
-func (e *Eos) StartServer() {
-	go e.server.ListenAndServe()
+func (e *Eos) Close() error {
+	return e.conn.Close()
+}
+
+func (e *Eos) StartServer() error {
+	if err := e.conn.Open(); err != nil {
+		return err
+	}
+	go e.conn.Serve()
+	return nil
+}
+
+func (e *Eos) SendMessage(msg *osc.Message) error {
+	return e.conn.Send(msg)
 }

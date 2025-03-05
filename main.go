@@ -2,12 +2,15 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	//"github.com/hypebeast/go-osc/osc"
 	"github.com/tmshort/xtouch-eos/pkg/eos"
+	"github.com/tmshort/xtouch-eos/pkg/osc"
 	"github.com/tmshort/xtouch-eos/pkg/xtouch"
 	"gitlab.com/gomidi/midi/v2"
 	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv"
@@ -16,13 +19,7 @@ import (
 func main() {
 	defer midi.CloseDriver()
 
-	inPorts := midi.GetInPorts()
-	outPorts := midi.GetOutPorts()
-
-	fmt.Printf("inPorts:\n%+v\n", inPorts)
-	fmt.Printf("outPorts:\n%+v\n", outPorts)
-
-	xt, err := xtouch.NewXTouch()
+	xt, err := xtouch.NewFakeXTouch()
 	if err != nil {
 		fmt.Printf("error creating XTouch: %v\n", err)
 		os.Exit(1)
@@ -61,11 +58,27 @@ func main() {
 		fmt.Printf("fader %v at %v\n", f, v)
 	})
 
-	_, err = eos.NewEos("localhost", "localhost")
+	e, err := eos.NewEos("0.0.0.0", "192.168.1.222")
 	if err != nil {
 		fmt.Printf("error creating Eos: %v\n", err)
 		os.Exit(1)
+	}
+	defer e.Close()
 
+	fmt.Printf("listening for OSC\n")
+	err = e.Handler("*", func(msg *osc.Message, addr net.Addr) {
+		fmt.Printf("Received from %v: %+v\n", addr, msg)
+	})
+	if err != nil {
+		fmt.Printf("error adding handler: %v\n", err)
+	}
+
+	e.StartServer()
+
+	fmt.Printf("sending OSC\n")
+	err = e.SendMessage(osc.NewMessage("/alwaysReply"))
+	if err != nil {
+		fmt.Printf("error sending message: %v\n", err)
 	}
 
 	func() {
