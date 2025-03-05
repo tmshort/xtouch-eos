@@ -58,9 +58,13 @@ func NewEos(txaddr, rxaddr string) (*Eos, error) {
 		Addr:       fmt.Sprintf("%v:%v", host, port),
 		Dispatcher: dispatcher,
 	}
-	return &Eos{client: client, server: server}, nil
+	return &Eos{client: client, server: server, dispatcher: dispatcher}, nil
 }
 
 func (e *Eos) Handler(prefix string, handler func(msg *osc.Message)) error {
 	return e.dispatcher.AddMsgHandler(prefix, handler)
+}
+
+func (e *Eos) StartServer() {
+	go e.server.ListenAndServe()
 }
