@@ -11,8 +11,12 @@ import (
 )
 
 const (
-	defaultRemotePort = 53000 // send to this // 4703 // 8000
-	defaultLocalPort  = 53001 // receive on this // 4704 // 8001
+	QLabRemotePort    = 53000
+	QLabLocalPort     = 53001
+	EosRemotePort     = 8000
+	EosLocalPort      = 8001
+	defaultRemotePort = 8000
+	defaultLocalPort  = 9000
 )
 
 type Eos struct {

@@ -19,7 +19,7 @@ import (
 func main() {
 	defer midi.CloseDriver()
 
-	xt, err := xtouch.NewFakeXTouch()
+	xt, err := xtouch.NewXTouch()
 	if err != nil {
 		fmt.Printf("error creating XTouch: %v\n", err)
 		os.Exit(1)
@@ -32,7 +32,7 @@ func main() {
 
 	fmt.Printf("Listening...\n")
 
-	//disp.SetLCDRaw("Hello World", 0)
+	//xt.SetLCDRaw("Hello World", 0)
 	xt.LcdDisplay(4).SetPanel("Hello", "World44444444")
 	xt.LedDisplay.SetAll("  E0S 3.14.0")
 
@@ -58,7 +58,8 @@ func main() {
 		fmt.Printf("fader %v at %v\n", f, v)
 	})
 
-	e, err := eos.NewEos("0.0.0.0", "192.168.1.222")
+	//e, err := eos.NewEos("0.0.0.0", "192.168.1.222")
+	e, err := eos.NewEos("0.0.0.0", "127.0.0.1")
 	if err != nil {
 		fmt.Printf("error creating Eos: %v\n", err)
 		os.Exit(1)
@@ -66,8 +67,12 @@ func main() {
 	defer e.Close()
 
 	fmt.Printf("listening for OSC\n")
-	err = e.Handler("*", func(msg *osc.Message, addr net.Addr) {
+	err = e.Handler("/eos/out/get/version", func(msg *osc.Message, addr net.Addr) {
 		fmt.Printf("Received from %v: %+v\n", addr, msg)
+		for i, a := range msg.Arguments {
+			fmt.Printf("Arg[%d]=%v\n", i, a)
+		}
+		xt.LedDisplay.SetAll(fmt.Sprintf("  E0S %v", msg.Arguments[0]))
 	})
 	if err != nil {
 		fmt.Printf("error adding handler: %v\n", err)
@@ -76,7 +81,7 @@ func main() {
 	e.StartServer()
 
 	fmt.Printf("sending OSC\n")
-	err = e.SendMessage(osc.NewMessage("/alwaysReply"))
+	err = e.SendMessage(osc.NewMessage("/eos/get/version"))
 	if err != nil {
 		fmt.Printf("error sending message: %v\n", err)
 	}

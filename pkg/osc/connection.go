@@ -141,6 +141,7 @@ func (c *Connection) Close() error {
 // Serve retrieves incoming OSC packets from the given connection and dispatches
 // retrieved OSC packets. If something goes wrong an error is returned.
 func (c *Connection) Serve() error {
+	defer fmt.Println("exiting Serve())")
 	c.doneCh = make(chan bool)
 	go c.readFromConnection()
 	var tempDelay time.Duration
@@ -183,6 +184,7 @@ type readData struct {
 
 // readFromConnection retrieves OSC packets.
 func (c *Connection) readFromConnection() {
+	defer fmt.Println("exiting needFromConnection()")
 	for {
 		if c.ReadTimeout != 0 {
 			if err := c.conn.SetReadDeadline(time.Now().Add(c.ReadTimeout)); err != nil {
